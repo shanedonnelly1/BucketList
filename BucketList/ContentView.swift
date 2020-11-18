@@ -9,54 +9,88 @@ import LocalAuthentication
 import MapKit
 import SwiftUI
 
-struct ContentView: View {
+struct LockedView: View {
+    @Binding var isUnlocked: Bool
+    @State private var showingError = false
+    @State private var errorTitle = ""
+    @State private var errorMsg = ""
+
+    var body: some View {
+        Button("Unlock Places") {
+            self.authenticate()
+        }
+        .padding()
+        .background(Color.blue)
+        .foregroundColor(.white)
+        .clipShape(Capsule())
+        .alert(isPresented: $showingError) {
+            Alert(title: Text(errorTitle), message: Text(errorMsg), dismissButton: .default(Text("OK")))
+        }
+    }
+
+    func authenticate() {
+        let context = LAContext()
+        var error: NSError?
+
+        if context.canEvaluatePolicy(.deviceOwnerAuthentication, error: &error) {
+            let reason = "Please authenticate yourself to unlock your places."
+
+            context.evaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, localizedReason: reason) { success, _ in
+                DispatchQueue.main.async {
+                    if success {
+                        self.isUnlocked = true
+                    } else {
+                        self.errorTitle = "Unable to authenticate"
+                        self.errorMsg = "\(error?.localizedDescription ?? "Unknown error")"
+                        self.showingError = true
+                    }
+                }
+            }
+        } else {
+            self.errorTitle = "Unable to unlock"
+            self.errorMsg = "Your device does not support biometric authentication."
+            self.showingError = true
+        }
+    }
+}
+
+struct UnlockedView: View {
     @State private var centerCoordinate = CLLocationCoordinate2D()
     @State private var locations = [CodableMKPointAnnotation]()
     @State private var selectedPlace: MKPointAnnotation?
     @State private var showingPlaceDetails = false
     @State private var showingEditScreen = false
-    @State private var isUnlocked = false
 
     var body: some View {
         ZStack {
-            if isUnlocked {
-                MapView(centerCoordinate: $centerCoordinate, selectedPlace: $selectedPlace, showingPlaceDetails: $showingPlaceDetails, annotations: locations)
-                    .edgesIgnoringSafeArea(.all)
-                Circle()
-                    .fill(Color.blue)
-                    .opacity(0.3)
-                    .frame(width: 32, height: 32)
-                VStack {
+            MapView(centerCoordinate: $centerCoordinate, selectedPlace: $selectedPlace, showingPlaceDetails: $showingPlaceDetails, annotations: locations)
+                .edgesIgnoringSafeArea(.all)
+            Circle()
+                .fill(Color.blue)
+                .opacity(0.3)
+                .frame(width: 32, height: 32)
+            VStack {
+                Spacer()
+                HStack {
                     Spacer()
-                    HStack {
-                        Spacer()
-                        Button(action: {
-                            let newLocation = CodableMKPointAnnotation()
-                            newLocation.coordinate = self.centerCoordinate
-                            newLocation.title = "Example location"
-                            self.locations.append(newLocation)
+                    Button(action: {
+                        let newLocation = CodableMKPointAnnotation()
+                        newLocation.coordinate = self.centerCoordinate
+                        newLocation.title = "Example location"
+                        self.locations.append(newLocation)
 
-                            self.selectedPlace = newLocation
-                            self.showingEditScreen = true
-                        }) {
-                            Image(systemName: "plus")
-                        }
-                        .padding()
-                        .background(Color.black.opacity(0.75))
-                        .foregroundColor(.white)
-                        .font(.title)
-                        .clipShape(Circle())
-                        .padding(.trailing)
+                        self.selectedPlace = newLocation
+                        self.showingEditScreen = true
+                    }) {
+                        Image(systemName: "plus")
                     }
+                    .padding()
+                    .background(Color.black.opacity(0.75))
+                    .foregroundColor(.white)
+                    .font(.title)
+                    .clipShape(Circle())
+                    .padding(.trailing)
                 }
-            } else {
-                Button("Unlock Places") {
-                    self.authenticate()
-                }
-                .padding()
-                .background(Color.blue)
-                .foregroundColor(.white)
-                .clipShape(Capsule())
             }
         }
         .alert(isPresented: $showingPlaceDetails) {
@@ -97,27 +131,19 @@ struct ContentView: View {
             print("Unable to save data.")
         }
     }
+}
 
-    func authenticate() {
-        let context = LAContext()
-        var error: NSError?
+struct ContentView: View {
+    @State private var isUnlocked = false
 
-        if context.canEvaluatePolicy(.deviceOwnerAuthentication, error: &error) {
-            let reason = "Please authenticate yourself to unlock your places."
-
-            context.evaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, localizedReason: reason) { success, _ in
-                DispatchQueue.main.async {
-                    if success {
-                        self.isUnlocked = true
-                    } else {
-                        // error
-                    }
-                }
-            }
+    var body: some View {
+        if isUnlocked {
+            UnlockedView()
         } else {
-            // no biometrics
+            LockedView(isUnlocked: $isUnlocked)
         }
     }
+
 }
 
 //import LocalAuthentication
